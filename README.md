@@ -26,3 +26,6 @@ For each identified breakout, the script will visualize the stock data for 2 wee
 Ensure you have a valid API key from Polygon.io.
 Be cautious about making too many requests in a short period to avoid hitting rate limits.
 The breakout criteria (percentage change and volume) can be adjusted as needed.
+
+![image](https://github.com/Neyt/4percentwithvol/assets/6138871/770ed6f5-c501-499f-864d-b3ed81733d22)
+
