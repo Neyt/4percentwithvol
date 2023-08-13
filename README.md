@@ -8,14 +8,15 @@ Identifies breakouts based on percentage change and volume.
 Visualizes the stock data around the breakout day using candlestick charts.
 Highlights the breakout day with a dot below the candle.
 
-Requirements:
+
+##Requirements:
 Python 3.x
 Libraries: requests, pandas, mplfinance, tqdm
 
-To install the required libraries, run:
+###To install the required libraries, run:
 pip install requests pandas mplfinance tqdm
 
-Usage:
+##Usage:
 Set your API key in the API_KEY constant.
 Run the script.
 The script will process the first 20 stock symbols by default. You can adjust this by modifying the symbols[:20] slice.
