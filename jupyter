@@ -1,0 +1,108 @@
+import requests
+import time
+import pandas as pd
+from tqdm.notebook import tqdm
+import mplfinance as mpf
+
+# Constants
+API_KEY = '_________________________________'  # Your API Key
+BASE_URL = 'https://api.polygon.io/v2/aggs/ticker/'
+
+def get_all_stock_symbols():
+    url = f"https://api.polygon.io/v3/reference/tickers?apiKey={API_KEY}"
+    response = requests.get(url)
+    data = response.json()
+    
+    if data['status'] != 'OK':
+        print("Error fetching stock symbols:", data.get('error', response.text))
+        return []
+
+    return [ticker['ticker'] for ticker in data['results']]
+
+def get_daily_breakouts(symbol):
+    url = f"{BASE_URL}{symbol}/range/1/day/2023-01-01/2023-12-31?apiKey={API_KEY}"
+    response = requests.get(url)
+    data = response.json()
+
+    if 'results' not in data:
+        return []
+
+    candles = data['results']
+    average_volume = sum([candle['v'] for candle in candles]) / len(candles)
+    breakouts = []
+
+    for i in range(1, len(candles)):
+        previous_close = candles[i-1]['c']
+        current_close = candles[i]['c']
+        volume = candles[i]['v']
+
+        if volume > average_volume:
+            percentage_change = ((current_close - previous_close) / previous_close) * 100
+            if percentage_change > 4:
+                breakouts.append({
+                    'date': candles[i]['t'],
+                    'percentage_change': percentage_change,
+                    'volume': volume
+                })
+
+    return breakouts
+
+symbols = get_all_stock_symbols()
+all_breakouts = []
+
+# Using tqdm for progress bar
+for symbol in tqdm(symbols[:20], desc="Processing stocks"):
+    breakouts = get_daily_breakouts(symbol)
+    for breakout in breakouts:
+        all_breakouts.append({
+            'Symbol': symbol,
+            'Date': breakout['date'],
+            'Percentage Change': breakout['percentage_change'],
+            'Volume': breakout['volume']
+        })
+    
+    # Adding a delay of 0.01 seconds between requests to handle rate limits
+    time.sleep(0.01)
+
+# Displaying the data in Jupyter
+for breakout in all_breakouts:
+    symbol = breakout['Symbol']
+    date = breakout['Date']
+    
+    # Fetch data for the symbol for 2 weeks before and after the breakout date
+    start_date = date - (2 * 7 * 24 * 60 * 60 * 1000)  # 2 weeks in milliseconds
+    end_date = date + (2 * 7 * 24 * 60 * 60 * 1000)
+    
+    url = f"{BASE_URL}{symbol}/range/1/day/{start_date}/{end_date}?apiKey={API_KEY}"
+    response = requests.get(url)
+    data = response.json()
+    
+    if 'results' not in data:
+        continue
+    
+    candles = data['results']
+    df = {
+        'Date': [candle['t'] for candle in candles],
+        'Open': [candle['o'] for candle in candles],
+        'High': [candle['h'] for candle in candles],
+        'Low': [candle['l'] for candle in candles],
+        'Close': [candle['c'] for candle in candles],
+        'Volume': [candle['v'] for candle in candles]
+    }
+    
+    # Convert timestamps to datetime format
+    df['Date'] = pd.to_datetime(df['Date'], unit='ms')
+    df = pd.DataFrame(df).set_index('Date')
+    
+    # Get the breakout date in datetime format
+    breakout_date = pd.to_datetime(date, unit='ms')
+    
+    # Create a scatter plot for the breakout day
+    scatter_data = df['Low'].copy()
+    scatter_data[:] = None
+    scatter_data[breakout_date] = df.loc[breakout_date, 'Low'] - (df['High'].max() - df['Low'].min()) * 0.05  # 5% below the low of the breakout day
+    
+    scatter_plot = mpf.make_addplot(scatter_data, type='scatter', markersize=100, marker='o', color='black')
+    
+    # Plotting with the breakout day highlighted with a dot
+    mpf.plot(df, type='candle', style='charles', title=f"{symbol} around breakout on {breakout_date}", volume=True, figsize=(10, 6), addplot=scatter_plot)
